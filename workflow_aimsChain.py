@@ -4,6 +4,12 @@ import scipy
 import numpy as np
 from ase.io.aims import write_aims
 
+from carmm.run.aims_path import set_aims_command
+from carmm.run.aims_calculator import get_aims_calculator
+from ase.io import read
+import os
+
+
 
 def write_chain_control(parameters: dict):
     lim = '#' * 80
@@ -21,7 +27,7 @@ def write_chain_control(parameters: dict):
                         'Periodic system setting': ['periodic_interpolation', 'xyz_lattice', 'map_unit_cell']}
     for category, keywords in keyword_category.items():
         chain_in.write(lim + '\n' + '##' + category + '\n' + lim + '\n')
-        [chain_in.write('%-35s%s\n' % (key, value)) for key, value in parameters.items()
+        [chain_in.write('%-20s%s\n' % (key, value)) for key, value in parameters.items()
          if key in keywords]
     return 0
 
@@ -35,8 +41,32 @@ class AimsChainWorkFlow:
         self.calc = fhi_calc
         self.geo_constrain = geo_constrain
 
+        self.parameters['run_aims'] = self.calc.command
+
     def write_chain_inputs(self):
         write_chain_control(self.parameters)
-        write_aims(fd=self.parameters['initial_file'], atoms=self.initial, geo_constrain=self.geo_constrain)
-        write_aims(fd=self.parameters['final_file'], atoms=self.final, geo_constrain=self.geo_constrain)
+        write_aims(os.path.join(self.calc.directory, self.parameters['initial_file']), atoms=self.initial,
+                   geo_constrain=self.geo_constrain)
+        write_aims(os.path.join(self.calc.directory, self.parameters['final_file']), atoms=self.final,
+                   geo_constrain=self.geo_constrain)
         self.calc.write_control(atoms=self.initial, filename='control.in')
+
+
+set_aims_command(hpc='hawk', basis_set='light', defaults=2020)
+calc = get_aims_calculator(dimensions=2, k_grid=(5, 7, 1), xc='libxc MGGA_X_MBEEF+GGA_C_PBE_SOL')
+calc.set(xc_pre=['pbe', '10'],
+         spin='none',
+         use_dipole_correction='True',
+         relativistic=('atomic_zora', 'scalar'),
+         compute_forces="true",
+         charge_mix_param=0.02,
+         occupation_type="gaussian 0.05",
+         )
+initial = read("initial.traj")
+final = read("final.traj")
+string_chain = AimsChainWorkFlow(fhi_calc=calc, initial_struc=initial, final_struc=final, initial_file='ini.in',
+                                 final_file='fin.in', method='string', n_images=7, force_thres=0.01, optimizer='BFGS',
+                                 use_climb='true', climb_thres=0.05)
+print(string_chain.parameters['initial_file'])
+string_chain.write_chain_inputs()
+
