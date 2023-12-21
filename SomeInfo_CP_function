@@ -1,0 +1,10 @@
+It can be quite hard to replace the fhi_calc with a generic one. I give up the calculate function in ase.calculators.calculator.FileIOCalculator.calculate which is shared among most types of calculators in ase. I did this to be able to pass the ghosts kwarg to the write_input function explicitly.
+There is an write_aims function which accepts ghosts as a kwarg and write geometry.in with ghost atoms properly. This write_aims is used in Aims.write_input which also accepts ghosts as a kwarg (default is None). In ase 3.22.1, there is no explicit 'ghosts' kwarg when creating an Aims calculator, so ghosts goes into parameters and get written into control.in instead of geometry.in.
+If I do fhi_calc.pop('ghosts') before the calculation and set fhi_calc.ghosts=*, fhi_calc now has an ghosts attribute, but the calculation will still not work. That's because the call to write_input function inside the general calculate function, self.write_input(self.atoms, properties, system_changes), does not contain an ghosts kwarg, so ghosts=None.
+
+
+I can't get around this problem with ase 3.22.1 and have to write another calculate function which has ghosts kwarg in the call to self.write_input. By doing so, I can't use an EMT calculator as I will be calling an write_input function that does not exist in EMT.
+This function could still work for other calculators providing they are using the same convention to write input files with ghost atoms as write_aims and their write_input function also accepts ghosts kwarg.
+
+I think this may be not that useful as other software (such as Gaussian?) may have counterpoise correction implemented already.
+I know the Aims calculator and a few others are rewritten, and the problem described here is resolved in the new code. https://wiki.fysik.dtu.dk/ase/ase/calculators/calculators.html#calculators (in calculator configuration). This process would be much easier with the new code as one can supply a bool list for ghost atoms when creating the calculator. For now, these changes has not appear in current version of ase, so this function here is more a workaround.
